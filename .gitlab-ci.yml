@@ -1,0 +1,15 @@
+# This is an example gitlab ci build script to check the syntax you can use the
+# linter at http://oskarblues.brewmaster.lab/ci/lint
+
+deploy-tools:
+    tags:
+        - bits
+        - shell
+    script:
+        # when a new commit to master is pushed we will copy build tools
+        # to /opt/puma on the Gitlab Runner if we ever get more runners we will
+        # need to make this run on all of them
+        - mkdir -p /opt/bits-tools/build-tools
+        - cp -a * /opt/bits-tools/build-tools
+    only:
+        - master
