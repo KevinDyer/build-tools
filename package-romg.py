@@ -16,6 +16,7 @@ def __make_parser():
     p.add_argument('-o', '--overlays', nargs='*', help='path(s) to overlays that should be overlayed in the omg. multiple overlays separated by spaces', default=[], required = False)
     p.add_argument('-d', '--output-directory', type=str, help='optional output direcotry if not given CWD will be used', default = './')
     p.add_argument('-v', '--verbose', action='store_true')
+    p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[], help='Optional script(s) that will be run just before the romg is packaged that can be used to minifiy or tweak modules')
     return p
 
 class romgBuilder(object):
@@ -76,7 +77,7 @@ class romgBuilder(object):
             sRomgInfoFilename = '%s_%s_header.json' % (self.info['name'], self.info['version'])
         sRomgFilepath = os.path.join(outputDir, sRomgFilename)
         sRomgInfoFilepath = os.path.join(outputDir, sRomgInfoFilename)
-        self.logger.debug('Ouptuing to %s %s', sRomgFilepath, sRomgInfoFilepath)
+        self.logger.debug('Outputing to %s %s', sRomgFilepath, sRomgInfoFilepath)
         with tarfile.open(sRomgFilepath, "w:gz") as tar:
             tar.add(self.tmpDir, arcname='./')
         with open(sRomgInfoFilepath, 'w') as infoFile:
@@ -91,6 +92,21 @@ def checkFileArg(fileName, errorStr):
     except Exception:
         sys.stderr.write(errorStr + ' invlid path')
         sys.exit(1)
+
+def run_pre_package_scripts(scripts, buildDir):
+    print 'Scripts: ' , scripts
+    my_env = os.environ.copy()
+
+    for script in scripts:
+        print "Running " + script
+        try:
+            args = script.split(' ')
+            ret = subprocess.call(args, cwd=buildDir, env=my_env)
+            if 0 != ret:
+                print 'Failed to run ' , ret
+        except Exception as e:
+            print 'Failed to run script ' , e
+
 
 def __main(argv):
     parser = __make_parser()
@@ -117,6 +133,8 @@ def __main(argv):
         romg.addModule(module)
     for overlay in settings.overlays:
         romg.addOverlay(overlay)
+
+    run_pre_package_scripts(settings.pre_package_scripts, tmpDir)
 
     romg.writeRomg(settings.output_directory)
     #clean up temp dir
