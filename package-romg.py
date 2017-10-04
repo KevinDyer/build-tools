@@ -24,7 +24,7 @@ class romgBuilder(object):
         self.tmpDir = tmpDir
         self.logger = logger
         self.logger.debug("Adding base %s", pathToBase)
-        self.info = {'name': name, 'version': version, 'modules': {}, 'overlays': {}}
+        self.info = {'name': name, 'version': version, 'modules': {}, 'overlays': {}, 'arch': 'x64'}
         if None != branch:
             self.info['branch'] = branch
         baseInfo = self.__readModuleJson(pathToBase)
