@@ -287,7 +287,8 @@ def __main(argv):
     #copy files that don't need processing add any files that
     #need to be compiled/etc to the ignore lists and then process them
     #after
-    EXCLUDE_FILES = ['.gitignore', 'README', 'README.md', '*.exclude.*', '*.exclude', '.gitlab-ci.yml']
+    EXCLUDE_FILES = ['.gitignore', 'README', 'README.md', '*.exclude.*', '*.exclude', '.gitlab-ci.yml', 'CHANGELOG.md',
+        '.editorconfig']
     EXCLUDE_DIRS = ['.git']
     if not settings.include_python_source:
         EXCLUDE_DIRS.extend(settings.python_paths)
