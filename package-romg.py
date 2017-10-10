@@ -24,11 +24,12 @@ class romgBuilder(object):
         self.tmpDir = tmpDir
         self.logger = logger
         self.logger.debug("Adding base %s", pathToBase)
-        self.info = {'name': name, 'version': version, 'modules': {}, 'overlays': {}, 'arch': 'x64'}
+        self.info = {'name': name, 'version': version, 'modules': [], 'overlays': {}, 'arch': 'x64'}
         if None != branch:
             self.info['branch'] = branch
         baseInfo = self.__readModuleJson(pathToBase)
         self.info['base'] = {'name': baseInfo['name'], 'version': baseInfo['version']}
+        self.info['modules'].append(self.__readModuleJson(pathToBase))
         self.__extractTgz(pathToBase)
         self.moduleDir = os.path.join('data', 'base', 'modules', 'modules')
         os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.moduleDir)))
@@ -54,7 +55,7 @@ class romgBuilder(object):
     def addModule(self, moduleTgzPath):
         self.logger.debug("Adding module %s", moduleTgzPath)
         moduleInfo = self.__readModuleJson(moduleTgzPath)
-        self.info['modules'][moduleInfo['name']] = {'version': moduleInfo['version']}
+        self.info['modules'].append(moduleInfo);
         self.__extractTgz(moduleTgzPath, os.path.join(self.moduleDir, str(moduleInfo['name'])))
 
     def __readOverlayJson(self, overlayTgzPath):
