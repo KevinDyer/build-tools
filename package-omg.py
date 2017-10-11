@@ -54,7 +54,7 @@ def get_sha256(in_filename):
 def get_complementary_key_sha256_hash(keyFile):
     """
     Given a key it will look in the same directory and find the complementary key and return the sha256 hash of that key
-    The complementary key is the pulbic key if keyFile is a private key or a private key if keyFile is a public key.
+    The complementary key is the public key if keyFile is a private key or a private key if keyFile is a public key.
     """
     keyDir = os.path.dirname(keyFile)
     keyFiles = [os.path.join(keyDir, f) for f in os.listdir(keyDir) if os.path.isfile(os.path.join(keyDir, f))]
@@ -81,9 +81,9 @@ def get_complementary_key_sha256_hash(keyFile):
 def __make_parser():
     p = argparse.ArgumentParser(description='This decrypts an encrypted file')
     p.add_argument('-r', '--romg-file', type=str, help='the romg file to generate an omg for', default=None, required = True)
-    p.add_argument('-H', '--romg-header', type=str, help='do not include the filename in the package', default = False, required = True)
-    p.add_argument('-e', '--encryption-key', type=str, help='the private key used to encrypt the file', default=None, required = True)
-    p.add_argument('-s', '--signing-key', type=str, help='the public key used to verify the signature', default=None, required = True)
+    p.add_argument('-H', '--romg-header', type=str, help='the romg header to use', default = False, required = True)
+    p.add_argument('-e', '--encryption-key', type=str, help='the public key used to encrypt the file', default=None, required = True)
+    p.add_argument('-s', '--signing-key', type=str, help='the private key used to verify the signature', default=None, required = True)
     p.add_argument('-v', '--verbose', action='store_true', help='verbose message printing', default = False, required = False)
     p.add_argument('-d', '--output-directory', type=str, help='specify an alternate output directory for the decrypted file', default = None, required = False)
     return p
