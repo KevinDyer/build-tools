@@ -1,32 +1,21 @@
 #!/usr/bin/python
-# This python script decrypts data (*.mod) to a plaintext file.  The .enc file
-# is an encrypted file that has been encrypted with a public key and signed with
-# a private key
+# This python script encrypts a romg (*.romg) and a romg header (JSON) to an omg.
 #
-# The .enc file has the following format:
+# * This script requires that encrypt-data.py be present in the same directory.
+# * This script currently requires that both public/private keys be present
+#   for the encryption and signing keys.
+#
+# The .omg file has the following format:
 # +------------------------+
-# +       signature        +
-# +      [512 bytes]       +
+# +      ROMG-Header       +
 # +------------------------+
-# + RSA encrypted password +
-# +      [512 bytes]       +
-# +------------------------+
-# +   RSA encrypted salt   +
-# +      [512 bytes]       +
-# +------------------------+
-# + RSA encrypted filename +
-# +      [512 bytes]       +
-# +------------------------+
-# +      Symmetric Key     +
-# +    encrypted package   +
-# +      [file.pack]     +
+# +     encrypted ROMG     +
 # +------------------------+
 
 import sys, re, argparse, os, subprocess, shutil, struct, binascii, tempfile
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 import json
-
 
 def build_header(romgHeaderFile, encryptionKey, signingKey):
     header = None
