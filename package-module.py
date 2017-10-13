@@ -122,13 +122,15 @@ def update_build_number(module_dir, json_file, build_number):
     with open(m_json    , 'w') as outfile:
         json.dump(data, outfile, indent=2, separators=(',', ': '))
 
-def update_version(module_dir, json_file, version):
+def update_version(module_dir, json_file, version, git_hash):
     m_json = os.path.join(module_dir, json_file)
     json_data=open(m_json)
     data=json.load(json_data)
     json_data.close()
 
     data["version"] = version
+    if git_hash != None:
+        data["git_short_hash"] = git_hash
 
     with open(m_json    , 'w') as outfile:
         json.dump(data, outfile, indent=2, separators=(',', ': '))
@@ -327,7 +329,7 @@ def __main(argv):
         if (settings.buildnum != None):
             update_build_number(build_dir, json_file, settings.buildnum)
     else:
-        update_version(build_dir, json_file, settings.version)
+        update_version(build_dir, json_file, settings.version, git_hash)
 
     m_json = os.path.join(build_dir, json_file)
     json_data=open(m_json)
