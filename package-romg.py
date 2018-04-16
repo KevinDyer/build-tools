@@ -33,6 +33,8 @@ class romgBuilder(object):
         self.__extractTgz(pathToBase)
         self.moduleDir = os.path.join('data', 'base', 'modules', 'modules')
         os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.moduleDir)))
+        self.yarnCacheDir = None
+        self.yarnCacheDir = os.path.join(self.tmpDir, 'support', 'yarn-cache')
 
     def __extractTgz(self, tgzPath, relativeDir='.'):
         extractDir = os.path.abspath(os.path.join(self.tmpDir, relativeDir))
@@ -55,8 +57,10 @@ class romgBuilder(object):
     def addModule(self, moduleTgzPath):
         self.logger.debug("Adding module %s", moduleTgzPath)
         moduleInfo = self.__readModuleJson(moduleTgzPath)
-        self.info['modules'].append(moduleInfo);
-        self.__extractTgz(moduleTgzPath, os.path.join(self.moduleDir, str(moduleInfo['name'])))
+        self.info['modules'].append(moduleInfo)
+        relModuleDir = os.path.join(self.moduleDir, str(moduleInfo['name']))
+        self.__extractTgz(moduleTgzPath, relModuleDir)
+        self.__updateYarnCache(os.path.join(self.tmpDir, relModuleDir))
 
     def __readOverlayJson(self, overlayTgzPath):
         tf = tarfile.open(overlayTgzPath, 'r')
@@ -83,6 +87,23 @@ class romgBuilder(object):
             tar.add(self.tmpDir, arcname='./')
         with open(sRomgInfoFilepath, 'w') as infoFile:
             infoFile.write(json.dumps(self.info, indent=2, separators=(',', ': ')))
+
+    def __updateYarnCache(self, moduleDir):
+        """
+        This will update the global omg yarn cache dir (yarn-cache) with the cache dir from the module this is done
+        by rsync command to de-duplicate dependencies across all modules, if the module does not have a yarn cache
+        dir at support/yarn-cache this step will be skipped.  If it does exist it will be deleted after syncing to the
+        global omg yarn-cache dir
+        """
+        moduleCacheDir = os.path.join(os.path.abspath(os.path.join(moduleDir, 'support', 'yarn-cache')))
+        if os.path.isdir(moduleCacheDir):
+            p = subprocess.Popen(['rsync', '-a', moduleCacheDir + '/', self.yarnCacheDir + '/'])
+            p.wait()
+            if p.returncode != 0:
+                sys.stderr.write('Failed to sync yarn cache for %s\n' % (moduleDir))
+                sys.exit(1)
+            shutil.rmtree(moduleCacheDir)
+
 
 def checkFileArg(fileName, errorStr):
     if not os.path.exists(fileName):
