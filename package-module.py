@@ -320,13 +320,14 @@ def __main(argv):
 
     git_hash = get_git_hash(settings.module_dir)
     git_branch = None
-    if settings.version == None:
-        if settings.git_branch == None:
+
+    if not settings.version:
+        if not settings.git_branch:
             git_branch = get_git_branch(settings.module_dir)
         else:
             git_branch = settings.git_branch
         update_git_info(build_dir, json_file, git_hash, git_branch)
-        if (settings.buildnum != None):
+        if settings.buildnum:
             update_build_number(build_dir, json_file, settings.buildnum)
     else:
         update_version(build_dir, json_file, settings.version, git_hash)
@@ -337,15 +338,15 @@ def __main(argv):
 
     json_data.close()
 
-    if git_hash != None and git_branch != None:
+    if git_hash and git_branch:
         filename = data["name"] + "-" + data["version"] + "-" + git_branch + "-" + git_hash
-    elif git_hash != None:
+    elif git_hash:
         filename = data["name"] + "-" + data["version"] + "-" + git_hash
     else:
         filename = data["name"] + "-" + data["version"]
 
     if settings.dev:
-        if git_branch == None:
+        if not git_branch:
             filename = filename + "-dev"
         update_display_name(build_dir, json_file)
 
