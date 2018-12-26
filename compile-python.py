@@ -30,7 +30,7 @@ def get_outdir(dirpath, input_dir, output_dir):
             if not os.path.exists(outdir):
                 os.makedirs(outdir)
         else:
-            raise Exception("Error invalide path {}".format(dirpath))
+            raise Exception("Error invalid path {}".format(dirpath))
             
     return outdir
 

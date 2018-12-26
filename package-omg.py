@@ -68,13 +68,13 @@ def get_complementary_key_sha256_hash(keyFile):
 
 
 def __make_parser():
-    p = argparse.ArgumentParser(description='This decrypts an encrypted file')
+    p = argparse.ArgumentParser(description='This encrypts a romg (*.romg) to create an omg (*.omg)')
     p.add_argument('-r', '--romg-file', type=str, help='the romg file to generate an omg for', default=None, required = True)
     p.add_argument('-H', '--romg-header', type=str, help='the romg header to use', default = False, required = True)
     p.add_argument('-e', '--encryption-key', type=str, help='the public key used to encrypt the file', default=None, required = True)
     p.add_argument('-s', '--signing-key', type=str, help='the private key used to verify the signature', default=None, required = True)
     p.add_argument('-v', '--verbose', action='store_true', help='verbose message printing', default = False, required = False)
-    p.add_argument('-d', '--output-directory', type=str, help='specify an alternate output directory for the decrypted file', default = None, required = False)
+    p.add_argument('-d', '--output-directory', type=str, help='specify an alternate output directory for the OMG', default = None, required = False)
     return p
 
 def __main(argv):
