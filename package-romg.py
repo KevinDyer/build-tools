@@ -1,23 +1,29 @@
 #!/usr/bin/python
 
-import sys, re, argparse, os, subprocess, shutil, struct, binascii
+import argparse
 import json
 import logging
+import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import tarfile
 
+
 def __make_parser():
     p = argparse.ArgumentParser(description='This packages up modules and a base into a raw omg file')
-    p.add_argument('-n', '--name', type=str, help='the ROMG name', default=None, required = True)
-    p.add_argument('-V', '--version', type=str, help='the ROMG version', default = None, required = True)
-    p.add_argument('--branch', type=str, help='the ROMG branch', default = None, required = False)
-    p.add_argument('-b', '--base', type=str, help='the base packaged for the ROMG', default=None, required = True)
-    p.add_argument('-m', '--modules', nargs='+', help='path(s) to module packages that should be included in the omg. multiple modules separated by spaces', required = True)
-    p.add_argument('-o', '--overlays', nargs='*', help='path(s) to overlays that should be overlayed in the omg. multiple overlays separated by spaces', default=[], required = False)
-    p.add_argument('-d', '--output-directory', type=str, help='optional output direcotry if not given CWD will be used', default = './')
+    p.add_argument('-n', '--name', type=str, help='the ROMG name', default=None, required=True)
+    p.add_argument('-V', '--version', type=str, help='the ROMG version', default=None, required=True)
+    p.add_argument('--branch', type=str, help='the ROMG branch', default=None, required=False)
+    p.add_argument('-b', '--base', type=str, help='the base packaged for the ROMG', default=None, required=True)
+    p.add_argument('-m', '--modules', nargs='+', help='path(s) to module packages that should be included in the omg. multiple modules separated by spaces', required=True)
+    p.add_argument('-o', '--overlays', nargs='*', help='path(s) to overlays that should be overlayed in the omg. multiple overlays separated by spaces', default=[], required=False)
+    p.add_argument('-d', '--output-directory', type=str, help='optional output direcotry if not given CWD will be used', default='./')
     p.add_argument('-v', '--verbose', action='store_true')
     p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[], help='Optional script(s) that will be run just before the romg is packaged that can be used to minifiy or tweak modules')
     return p
+
 
 class romgBuilder(object):
     def __init__(self, pathToBase, logger, tmpDir, name, version, branch=None):
@@ -25,7 +31,7 @@ class romgBuilder(object):
         self.logger = logger
         self.logger.debug("Adding base %s", pathToBase)
         self.info = {'name': name, 'version': version, 'modules': [], 'overlays': {}, 'arch': 'x64'}
-        if None != branch:
+        if branch is not None:
             self.info['branch'] = branch
         baseInfo = self.__readModuleJson(pathToBase)
         self.info['base'] = {'name': baseInfo['name'], 'version': baseInfo['version']}
@@ -48,9 +54,8 @@ class romgBuilder(object):
         return contents
 
     def __readModuleJson(self, moduleTgzPath):
-        tf = tarfile.open(moduleTgzPath, 'r')
         moduleJson = self.__extractJsonFromTgz(moduleTgzPath, 'module.json')
-        if not moduleJson.has_key('dependencies'):
+        if 'dependencies' not in moduleJson:
             moduleJson['dependencies'] = {}
         return {'name': moduleJson['name'], 'version': moduleJson['version'], 'dependencies': moduleJson['dependencies']}
 
@@ -63,7 +68,6 @@ class romgBuilder(object):
         self.__updateYarnCache(os.path.join(self.tmpDir, relModuleDir))
 
     def __readOverlayJson(self, overlayTgzPath):
-        tf = tarfile.open(overlayTgzPath, 'r')
         overlayJson = self.__extractJsonFromTgz(overlayTgzPath, 'overlay.json')
         return {'name': overlayJson['name'], 'version': overlayJson['version']}
 
@@ -73,8 +77,8 @@ class romgBuilder(object):
         self.info['overlays'][overlayInfo['name']] = {'version': overlayInfo['version']}
         self.__extractTgz(overlayTgzPath)
 
-    def writeRomg(self, outputDir, branch=None):
-        if self.info.has_key('branch'):
+    def writeRomg(self, outputDir):
+        if 'branch' in self.info:
             sRomgFilename = '%s_%s_%s.romg' % (self.info['name'], self.info['branch'], self.info['version'])
             sRomgInfoFilename = '%s_%s_%s_header.json' % (self.info['name'], self.info['branch'], self.info['version'])
         else:
@@ -115,8 +119,9 @@ def checkFileArg(fileName, errorStr):
         sys.stderr.write(errorStr + ' invlid path')
         sys.exit(1)
 
+
 def run_pre_package_scripts(scripts, buildDir):
-    print 'Scripts: ' , scripts
+    print 'Scripts: ', scripts
     my_env = os.environ.copy()
 
     for script in scripts:
@@ -124,10 +129,10 @@ def run_pre_package_scripts(scripts, buildDir):
         try:
             args = script.split(' ')
             ret = subprocess.call(args, cwd=buildDir, env=my_env)
-            if 0 != ret:
-                print 'Failed to run ' , ret
+            if ret != 0:
+                print 'Failed to run ', ret
         except Exception as e:
-            print 'Failed to run script ' , e
+            print 'Failed to run script ', e
 
 
 def __main(argv):
@@ -140,7 +145,7 @@ def __main(argv):
     else:
         sh.setLevel(logging.ERROR)
     logger.addHandler(sh)
-    #get absolute paths and check file inputs for existence
+    # get absolute paths and check file inputs for existence
     settings.base = checkFileArg(settings.base, 'Invalid argument for base %s' % (settings.base))
     settings.modules = [checkFileArg(modulePath, 'Error invalid module specified %s' % (modulePath)) for modulePath in settings.modules]
     settings.overlays = [checkFileArg(overlayPath, 'Error invalid overlay specified %s' % (overlayPath)) for overlayPath in settings.overlays]
@@ -159,9 +164,10 @@ def __main(argv):
     run_pre_package_scripts(settings.pre_package_scripts, tmpDir)
 
     romg.writeRomg(settings.output_directory)
-    #clean up temp dir
+    # clean up temp dir
     shutil.rmtree(tmpDir)
     sys.exit(0)
+
 
 if __name__ == "__main__":
     __main(sys.argv)

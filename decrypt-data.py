@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# This python script decrypts data (*.mod) to a plaintext file.  The .enc file
+# This python script decrypts data (*.mod, *.enc) to a plaintext file. The output
 # is an encrypted file that has been encrypted with a public key and signed with
 # a private key
 #
@@ -224,7 +224,7 @@ def __main(argv):
         sys.stderr.write('Error encrypted file is not a valid file\n')
         sys.exit(1)
 
-    if settings.key_dir == None and (settings. encryption_key == None or settings.signing_key == None):
+    if settings.key_dir == None and (settings.encryption_key == None or settings.signing_key == None):
         devKeysDir = os.path.join(MYDIR, '..', 'keys')
         if not os.path.isdir(devKeysDir):
             sys.stderr.write('Must specify key dir or encryption key and signing key\n')
