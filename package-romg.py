@@ -11,21 +11,33 @@ import tempfile
 import tarfile
 from uuid import uuid4
 
+
 def __make_parser():
     p = argparse.ArgumentParser(description='This packages up modules and a base into a raw omg file')
     p.add_argument('-n', '--name', type=str, help='the ROMG name', default=None, required=True)
     p.add_argument('-V', '--version', type=str, help='the ROMG version', default=None, required=True)
     p.add_argument('--branch', type=str, help='the ROMG branch', default=None, required=False)
     p.add_argument('-b', '--base', type=str, help='the base packaged for the ROMG', default=None, required=True)
-    p.add_argument('-m', '--modules', nargs='+', help='path(s) to module packages that should be included in the omg. multiple modules separated by spaces', required=True)
-    p.add_argument('-o', '--overlays', nargs='*', help='path(s) to overlays that should be overlayed in the omg. multiple overlays separated by spaces', default=[], required=False)
-    p.add_argument('-d', '--output-directory', type=str, help='optional output direcotry if not given CWD will be used', default='./')
+    p.add_argument('-m', '--modules', nargs='+',
+                   help='path(s) to module packages that should be included in the omg. multiple modules separated by \
+                         spaces', required=True)
+    p.add_argument('-o', '--overlays', nargs='*',
+                   help='path(s) to overlays that should be overlayed in the omg. multiple overlays separated by \
+                         spaces', default=[], required=False)
+    p.add_argument('-d', '--output-directory', type=str,
+                   help='optional output direcotry if not given CWD will be used', default='./')
     p.add_argument('-v', '--verbose', action='store_true')
-    p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[], help='Optional script(s) that will be run just before the romg is packaged that can be used to minifiy or tweak modules')
-    p.add_argument('--build-node-modules', action='store_true', help='if set, "npm run bits:install" will be run on base and all modules')
+    p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[],
+                   help='Optional script(s) that will be run just before the romg is packaged that can be used to \
+                         minifiy or tweak modules')
+    p.add_argument('--build-node-modules', action='store_true',
+                   help='if set, "npm run bits:install" will be run on base and all modules')
     p.add_argument('--omg-format-version', type=int, help='set the format version (1 or 2)', default=1)
-    p.add_argument('--yarn-offline', action='store_true', help='force the package.json to run yarn with --offline flag (this will edit the file with sed)')
-    p.add_argument('-X', '--no-compression', action='store_true', help='disable compression for the tar bundle (romg file) this is useful if you plan on adding overlays at a later time')
+    p.add_argument('--yarn-offline', action='store_true',
+                   help='force the package.json to run yarn with --offline flag (this will edit the file with sed)')
+    p.add_argument('-X', '--no-compression', action='store_true',
+                   help='disable compression for the tar bundle (romg file) this is useful if you plan on adding \
+                         overlays at a later time')
     return p
 
 
@@ -55,7 +67,7 @@ class romgBuilder(object):
             os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.dataDir)))
             os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.baseDir)))
             self.info['uuid'] = str(uuid4())
-        if os.environ.has_key('OECORE_TARGET_ARCH'):
+        if 'OECORE_TARGET_ARCH' in os.environ:
             self.info['arch'] = os.environ['OECORE_TARGET_ARCH']
 
     def __extractTgz(self, tgzPath, relativeDir='.'):
@@ -112,11 +124,12 @@ class romgBuilder(object):
         if os.path.isdir(moduleDir) and os.path.isdir(moduleCacheDir):
             environment = os.environ.copy()
             if force_yarn_offline:
-                os.system("sed -i 's/yarn --prod/yarn --prod --offline/' %s" % (os.path.join(moduleDir, 'package.json')))
+                subprocess.call(['sed', '-i', 's/yarn --prod/yarn --prod, --offline/',
+                                os.path.join(moduleDir, 'package.json')])
             environment['YARN_CACHE_FOLDER'] = moduleCacheDir
             self.logger.debug('Running "bits:install" for %s', moduleDir)
             cmd = ['npm', 'run', 'bits:install']
-            if os.environ.has_key('ARCH') and os.environ['ARCH'] != 'x86':
+            if 'ARCH' in os.environ and os.environ['ARCH'] != 'x86':
                 cmd.append('--target_arch=%s' % (os.environ['ARCH']))
             p = subprocess.Popen(cmd, env=environment, cwd=moduleDir)
             p.wait()
@@ -164,7 +177,6 @@ class romgBuilder(object):
             os.rename(overlayJson,
                       os.path.join(self.overlayDescriptorDir,
                                    overlayInfo['name'] + '_' + overlayInfo['version']))
-
 
     def writeRomg(self, outputDir, disableCompression=False):
         if 'branch' in self.info:
@@ -227,8 +239,10 @@ def __main(argv):
     logger.addHandler(sh)
     # get absolute paths and check file inputs for existence
     settings.base = checkFileArg(settings.base, 'Invalid argument for base %s' % (settings.base))
-    settings.modules = [checkFileArg(modulePath, 'Error invalid module specified %s' % (modulePath)) for modulePath in settings.modules]
-    settings.overlays = [checkFileArg(overlayPath, 'Error invalid overlay specified %s' % (overlayPath)) for overlayPath in settings.overlays]
+    settings.modules = [checkFileArg(modulePath, 'Error invalid module specified %s' %
+                                     (modulePath)) for modulePath in settings.modules]
+    settings.overlays = [checkFileArg(overlayPath, 'Error invalid overlay specified %s' %
+                                      (overlayPath)) for overlayPath in settings.overlays]
     settings.output_directory = checkFileArg(settings.output_directory, 'Error invalid output dir')
     logger.debug("Base: %s Modules: %s Overlays: %s", settings.base, settings.modules, settings.overlays)
 
