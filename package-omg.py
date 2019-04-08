@@ -12,21 +12,31 @@
 # +     encrypted ROMG     +
 # +------------------------+
 
-import sys, re, argparse, os, subprocess, shutil, struct, binascii, tempfile
+import sys
+import re
+import argparse
+import os
+import subprocess
+import shutil
+import struct
+import binascii
+import tempfile
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 import json
+
 
 def build_header(romgHeaderFile, encryptionKey, signingKey):
     header = None
     with open(romgHeaderFile, 'r') as f:
         header = json.loads(f.read())
     if header:
-        #find the decrytion key hash that will be used to decryt this module
+        # find the decrytion key hash that will be used to decryt this module
         header['encryptionKeyHash'] = get_complementary_key_sha256_hash(encryptionKey)
-        #find the decrytion key hash that will be used to decryt this module
+        # find the decrytion key hash that will be used to decryt this module
         header['signatureKeyHash'] = get_complementary_key_sha256_hash(signingKey)
         return header
+
 
 def get_sha256(in_filename):
     CHUNK_SIZE = 16*1024
@@ -39,6 +49,7 @@ def get_sha256(in_filename):
             file_sha256_checksum.update(chunk)
         infile.close()
     return file_sha256_checksum
+
 
 def get_complementary_key_sha256_hash(keyFile):
     """
@@ -69,13 +80,19 @@ def get_complementary_key_sha256_hash(keyFile):
 
 def __make_parser():
     p = argparse.ArgumentParser(description='This encrypts a romg (*.romg) to create an omg (*.omg)')
-    p.add_argument('-r', '--romg-file', type=str, help='the romg file to generate an omg for', default=None, required = True)
-    p.add_argument('-H', '--romg-header', type=str, help='the romg header to use', default = False, required = True)
-    p.add_argument('-e', '--encryption-key', type=str, help='the public key used to encrypt the file', default=None, required = True)
-    p.add_argument('-s', '--signing-key', type=str, help='the private key used to verify the signature', default=None, required = True)
-    p.add_argument('-v', '--verbose', action='store_true', help='verbose message printing', default = False, required = False)
-    p.add_argument('-d', '--output-directory', type=str, help='specify an alternate output directory for the OMG', default = None, required = False)
+    p.add_argument('-r', '--romg-file', type=str,
+                   help='the romg file to generate an omg for', default=None, required=True)
+    p.add_argument('-H', '--romg-header', type=str, help='the romg header to use', default=False, required=True)
+    p.add_argument('-e', '--encryption-key', type=str,
+                   help='the public key used to encrypt the file', default=None, required=True)
+    p.add_argument('-s', '--signing-key', type=str,
+                   help='the private key used to verify the signature', default=None, required=True)
+    p.add_argument('-v', '--verbose', action='store_true',
+                   help='verbose message printing', default=False, required=False)
+    p.add_argument('-d', '--output-directory', type=str,
+                   help='specify an alternate output directory for the OMG', default=None, required=False)
     return p
+
 
 def __main(argv):
     parser = __make_parser()
@@ -103,26 +120,28 @@ def __main(argv):
     header = build_header(settings.romg_header, settings.encryption_key, settings.signing_key)
     headerStr = json.dumps(header)
     headerStr = '%d#' % (len(headerStr)) + headerStr
-    notUsed, tmpfname = tempfile.mkstemp(prefix='omg-header')
+    _tmpfh, tmpfname = tempfile.mkstemp(prefix='omg-header')
     with open(tmpfname, 'w') as fh:
         fh.write(headerStr)
 
     encryptScript = os.path.abspath(os.path.join(MYDIR, 'encrypt-data.py'))
-    args = [encryptScript, '-e', settings.encryption_key, '-s', settings.signing_key, '-t', settings.romg_file, '-H', tmpfname]
+    args = [encryptScript, '-e', settings.encryption_key, '-s',
+            settings.signing_key, '-t', settings.romg_file, '-H', tmpfname]
     if settings.output_directory:
         args.append('-d')
         args.append(settings.output_directory)
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdoutstr, stederrstr = p.communicate()
+    stdoutstr, _stderrstr = p.communicate()
     p.wait()
     os.remove(tmpfname)
-    if p.returncode == 0 and stdoutstr != None:
+    if p.returncode == 0 and stdoutstr is not None:
         encFname = stdoutstr.replace('\n', '')
         omgFileName = encFname.replace('.enc', '.omg')
         os.rename(encFname, omgFileName)
         print omgFileName
 
     sys.exit(p.returncode)
+
 
 if __name__ == "__main__":
     __main(sys.argv)

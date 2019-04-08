@@ -36,12 +36,27 @@
 # +      [module.pack]     +
 # +------------------------+
 
-import sys, re, argparse, os, json, tarfile, subprocess, tempfile
-import shutil, fnmatch, base64, struct, string, random, binascii
+import sys
+import re
+import argparse
+import os
+import json
+import tarfile
+import subprocess
+import tempfile
+import shutil
+import fnmatch
+import base64
+import struct
+import string
+import random
+import binascii
+
 
 def make_tarfile(output_filename, source_dir):
     with tarfile.open(output_filename, "w:gz") as tar:
         tar.add(source_dir, arcname=os.path.basename(source_dir))
+
 
 def get_git_hash(module_dir):
     wd = os.getcwd()
@@ -54,6 +69,7 @@ def get_git_hash(module_dir):
         print 'Error not able to get git_hash'
     os.chdir(wd)
     return git_hash
+
 
 def get_git_branch(module_dir):
     wd = os.getcwd()
@@ -68,11 +84,12 @@ def get_git_branch(module_dir):
     os.chdir(wd)
     return git_branch
 
+
 def get_scripts_dir(module_dir, json_file):
     m_json = os.path.join(module_dir, json_file)
     print m_json
-    json_data=open(m_json)
-    data=json.load(json_data)
+    json_data = open(m_json)
+    data = json.load(json_data)
     json_data.close()
 
     if "scriptDir" in data:
@@ -84,34 +101,37 @@ def get_scripts_dir(module_dir, json_file):
     else:
         return None
 
+
 def update_git_info(module_dir, json_file, git_hash, git_branch):
     m_json = os.path.join(module_dir, json_file)
-    json_data=open(m_json)
-    data=json.load(json_data)
+    json_data = open(m_json)
+    data = json.load(json_data)
     json_data.close()
 
-    if git_hash != None:
+    if git_hash is not None:
         data["git_short_hash"] = git_hash
         data["git_branch"] = git_branch
         with open(m_json, 'w') as outfile:
             json.dump(data, outfile, indent=2, separators=(',', ': '))
 
+
 def update_display_name(module_dir, json_file):
     m_json = os.path.join(module_dir, json_file)
-    json_data=open(m_json)
-    data=json.load(json_data)
+    json_data = open(m_json)
+    data = json.load(json_data)
     json_data.close()
 
     if "displayName" in data:
         display_name = data["displayName"]
         data["displayName"] = display_name + " DEV"
-        with open(m_json    , 'w') as outfile:
+        with open(m_json, 'w') as outfile:
             json.dump(data, outfile, indent=2, separators=(',', ': '))
+
 
 def update_build_number(module_dir, json_file, build_number):
     m_json = os.path.join(module_dir, json_file)
-    json_data=open(m_json)
-    data=json.load(json_data)
+    json_data = open(m_json)
+    data = json.load(json_data)
     json_data.close()
 
     semver = data["version"].split(".")
@@ -119,21 +139,23 @@ def update_build_number(module_dir, json_file, build_number):
     minor = semver[1]
 
     data["version"] = major + "." + minor + "." + build_number
-    with open(m_json    , 'w') as outfile:
+    with open(m_json, 'w') as outfile:
         json.dump(data, outfile, indent=2, separators=(',', ': '))
+
 
 def update_version(module_dir, json_file, version, git_hash):
     m_json = os.path.join(module_dir, json_file)
-    json_data=open(m_json)
-    data=json.load(json_data)
+    json_data = open(m_json)
+    data = json.load(json_data)
     json_data.close()
 
     data["version"] = version
-    if git_hash != None:
+    if git_hash is not None:
         data["git_short_hash"] = git_hash
 
-    with open(m_json    , 'w') as outfile:
+    with open(m_json, 'w') as outfile:
         json.dump(data, outfile, indent=2, separators=(',', ': '))
+
 
 def create_build_dir(module_dir):
     tmpdir = tempfile.mkdtemp()
@@ -141,11 +163,13 @@ def create_build_dir(module_dir):
     os.makedirs(tmpdir)
     return tmpdir
 
+
 def remove_build_dir(build_dir):
     shutil.rmtree(os.path.dirname(build_dir))
 
+
 def copy_module_files(src, dst, exclude_files, exclude_dirs, symlinks=True):
-    for (dirpath, dirnames, filenames) in os.walk(src):
+    for (dirpath, _dirnames, filenames) in os.walk(src):
         dstdir = dst
         if (dirpath != src):
             if (dirpath.startswith(src)):
@@ -155,7 +179,7 @@ def copy_module_files(src, dst, exclude_files, exclude_dirs, symlinks=True):
                 for exclude_dir in exclude_dirs:
                     if exclude_dir in subdir_folders:
                         skip = True
-                if skip == True:
+                if skip:
                     continue
                 dstdir = os.path.join(dstdir, subdir)
                 if not os.path.exists(dstdir):
@@ -175,6 +199,7 @@ def copy_module_files(src, dst, exclude_files, exclude_dirs, symlinks=True):
                     os.symlink(linkto, dstname)
                 else:
                     shutil.copy(srcname, dstdir)
+
 
 def get_has_npm_build(buildDir):
     # Create the package.json filepath
@@ -208,6 +233,7 @@ def get_has_npm_build(buildDir):
     # The 'build' property exists!
     return True
 
+
 def run_npm_build(buildDir):
     my_env = os.environ.copy()
     # Set yarn cache directory for storing later
@@ -224,8 +250,9 @@ def run_npm_build(buildDir):
         remove_build_dir(buildDir)
         sys.exit(2)
 
+
 def run_pre_package_scripts(scripts, buildDir):
-    print 'Scripts: ' , scripts
+    print 'Scripts: ', scripts
     my_env = os.environ.copy()
 
     for script in scripts:
@@ -234,9 +261,10 @@ def run_pre_package_scripts(scripts, buildDir):
             args = script.split(' ')
             ret = subprocess.call(args, cwd=buildDir, env=my_env)
             if 0 != ret:
-                print 'Failed to run ' , ret
+                print 'Failed to run ', ret
         except Exception as e:
-            print 'Failed to run script ' , e
+            print 'Failed to run script ', e
+
 
 def pre_package_cleanup(build_dir):
     nodeModDir = os.path.join(build_dir, 'node_modules')
@@ -249,18 +277,29 @@ def pre_package_cleanup(build_dir):
 
 def __make_parser():
     p = argparse.ArgumentParser(description='This packages a module (or the base) into a tar file')
-    p.add_argument('-m', '--module-dir', type=str, help='path to the module that you would like packaged', required = True)
-    p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[], help='Optional script(s) that will be run just before the module is packaged into a tgz can be used to minifiy, or tweak modules')
-    p.add_argument('-b', '--buildnum', type=str, help='the build number to be placed in the json package information file, deprecated new builds should use version')
-    p.add_argument('-g', '--git-branch', help='branch name for the current build (needed for gitlab or jenkins builds) deprecated new builds should use version')
+    p.add_argument('-m', '--module-dir', type=str,
+                   help='path to the module that you would like packaged', required=True)
+    p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[],
+                   help='Optional script(s) that will be run just before the module is packaged into a tgz can be used \
+                         to minifiy, or tweak modules')
+    p.add_argument('-b', '--buildnum', type=str,
+                   help='the build number to be placed in the json package information file, deprecated new builds \
+                         should use version')
+    p.add_argument('-g', '--git-branch',
+                   help='branch name for the current build (needed for gitlab or jenkins builds) deprecated new builds \
+                         should use version')
     p.add_argument('-e', '--encryptionkey', type=str, help='the public key used to encrypt the module')
     p.add_argument('-s', '--signingkey', type=str, help='the private key used to sign the module')
     p.add_argument('-p', '--include-python-source', action='store_true', help='include the python source in the build')
     p.add_argument('-d', '--dev', action='store_true', help='tag as development build')
     p.add_argument('--skip-apt-offline-bundles', action='store_true', help='skip generation of apt-offline bundles')
-    p.add_argument('-P', '--python-paths', nargs='+', type=str, help='path to folder(s) that you would like compiled python code for in addition to Scripts dir')
-    p.add_argument('-v', '--version', type=str, help='Version number to apply to this build this is the new method of version tracking and replaces git-branch and buildnum')
+    p.add_argument('-P', '--python-paths', nargs='+', type=str,
+                   help='path to folder(s) that you would like compiled python code for in addition to Scripts dir')
+    p.add_argument('-v', '--version', type=str,
+                   help='Version number to apply to this build this is the new method of version tracking and replaces \
+                         git-branch and buildnum')
     return p
+
 
 def __main(argv):
     parser = __make_parser()
@@ -279,25 +318,25 @@ def __main(argv):
 
     script_dir = get_scripts_dir(settings.module_dir, json_file)
 
-    if settings.python_paths == None:
+    if settings.python_paths is None:
         settings.python_paths = []
     if script_dir:
         settings.python_paths.append(script_dir)
 
-    #now do any processing necessary to process files or just copy
+    # now do any processing necessary to process files or just copy
 
-    #copy files that don't need processing add any files that
-    #need to be compiled/etc to the ignore lists and then process them
-    #after
+    # copy files that don't need processing add any files that
+    # need to be compiled/etc to the ignore lists and then process them
+    # after
     EXCLUDE_FILES = ['.gitignore', 'README', 'README.md', '*.exclude.*', '*.exclude', '.gitlab-ci.yml', 'CHANGELOG.md',
-        '.editorconfig']
+                     '.editorconfig']
     EXCLUDE_DIRS = ['.git']
     if not settings.include_python_source:
         EXCLUDE_DIRS.extend(settings.python_paths)
     copy_module_files(settings.module_dir, build_dir, EXCLUDE_FILES, EXCLUDE_DIRS)
 
     for script_dir in settings.python_paths:
-        #compile python into build_dir
+        # compile python into build_dir
         scriptin = os.path.join(settings.module_dir, script_dir)
         scriptout = os.path.join(build_dir, script_dir)
         compile_script_path = os.path.join(MYDIR, 'compile-python.py')
@@ -307,7 +346,7 @@ def __main(argv):
             remove_build_dir(build_dir)
             sys.exit(1)
 
-        #copy any non python files from the script dir
+        # copy any non python files from the script dir
         EXCLUDE_FILES = EXCLUDE_FILES + ['*.pyc', '*.py']
         copy_module_files(scriptin, scriptout, EXCLUDE_FILES, EXCLUDE_DIRS)
 
@@ -333,8 +372,8 @@ def __main(argv):
         update_version(build_dir, json_file, settings.version, git_hash)
 
     m_json = os.path.join(build_dir, json_file)
-    json_data=open(m_json)
-    data=json.load(json_data)
+    json_data = open(m_json)
+    data = json.load(json_data)
 
     json_data.close()
 
@@ -354,7 +393,7 @@ def __main(argv):
     aptOfflineScript = os.path.abspath(os.path.join(MYDIR, '..', 'ci-tools', 'misc-tools', 'get-apt-offline.sh'))
     if not os.path.exists(aptOfflineDir):
         aptOfflineDir = os.path.join(build_dir, 'support', 'apt-offline')
-    if os.path.exists(aptOfflineDir) and settings.skip_apt_offline_bundles != True and os.path.exists(aptOfflineScript):
+    if os.path.exists(aptOfflineDir) and not settings.skip_apt_offline_bundles and os.path.exists(aptOfflineScript):
         ret = os.system(aptOfflineScript + ' -d ' + aptOfflineDir)
         if ret != 0:
             print 'Error generating apt-offline bundles'
@@ -369,13 +408,16 @@ def __main(argv):
 
     remove_build_dir(build_dir)
 
-    if settings.encryptionkey != None and settings.signingkey != None:
-        print "Encrypting tgz: " + filename + " with " + settings.encryptionkey + ", signing with " + settings.signingkey
-        os.system(MYDIR + "/encrypt-data.py -m -t " + filename + " -e " + settings.encryptionkey + " -s " + settings.signingkey)
+    if settings.encryptionkey is not None and settings.signingkey is not None:
+        print("Encrypting tgz: " + filename + " with " + settings.encryptionkey + ", signing with " +
+              settings.signingkey)
+        os.system(MYDIR + "/encrypt-data.py -m -t " + filename + " -e " +
+                  settings.encryptionkey + " -s " + settings.signingkey)
     else:
         print "Not Encrypting, Need to Specify Encryption and Signing keys (-s and -e)"
 
     sys.exit(0)
+
 
 if __name__ == "__main__":
     __main(sys.argv)

@@ -22,7 +22,14 @@
 # +      [file.pack]     +
 # +------------------------+
 
-import sys, re, argparse, os, subprocess, shutil, struct, binascii
+import sys
+import re
+import argparse
+import os
+import subprocess
+import shutil
+import struct
+import binascii
 from os.path import basename
 from Crypto.Cipher import AES
 from Crypto.PublicKey import RSA
@@ -35,7 +42,7 @@ from json import loads
 
 def read_header(in_filename):
     f = open(in_filename, 'r')
-    tempStr = f.read(16) #header length should not be more than 16 bytes
+    tempStr = f.read(16)  # header length should not be more than 16 bytes
     endIdx = tempStr.find('#')
     if endIdx > 0:
         headerLen = int(tempStr[0:endIdx])
@@ -43,6 +50,7 @@ def read_header(in_filename):
         header = loads(f.read(headerLen))
         header['offset'] = headerLen + endIdx + 1
         return header
+
 
 def get_sha256(in_filename):
     CHUNK_SIZE = 16*1024
@@ -55,6 +63,7 @@ def get_sha256(in_filename):
             file_sha256_checksum.update(chunk)
         infile.close()
     return file_sha256_checksum
+
 
 def find_keys(header, key_dir, settings):
     keyFiles = [os.path.join(key_dir, f) for f in os.listdir(key_dir) if os.path.isfile(os.path.join(key_dir, f))]
@@ -73,10 +82,10 @@ def find_keys(header, key_dir, settings):
         except Exception:
             pass
 
-    if not header.has_key('encKey') or not header.has_key('sigKey'):
+    if 'encKey' not in header or 'sigKey' not in header:
         raise Exception("Invalid header does not have required key fields")
 
-    if not publickeys.has_key(header['encKey']) or not privatekeys.has_key(header['sigKey']):
+    if header['encKey'] not in publickeys or header['sigKey'] not in privatekeys:
         raise Exception("Cannot find keys in key dir")
 
     for privatekey in privatekeys.values():
@@ -89,13 +98,13 @@ def find_keys(header, key_dir, settings):
             settings.signing_key = publickey['filename']
             sys.stderr.write('Signature key: %s\n' % (settings.signing_key))
 
-    if settings.encryption_key == None or settings.signing_key == None:
+    if settings.encryption_key is None or settings.signing_key is None:
         raise Exception("Cannot find complementary keys for decrypting")
 
 
 # Derive a secret AES symmetric key from a password and salt
 def derive_key_iv(password, salt):
-    KEY_LENGTH = 32 #Indicates AES-256
+    KEY_LENGTH = 32  # Indicates AES-256
     IV_LENGTH = AES.block_size
     if len(password) > 32:
         password = password[0:32]
@@ -111,6 +120,8 @@ def derive_key_iv(password, salt):
 # file_offset optional offset of the start of the encrypted blob
 # private_key is the RSA key to decrypt the AES key and Salt
 # public_key is the signature RSA key to verify source
+
+
 def decrypt_file(in_filename, file_offset, private_key, public_key, nofilename, outputdir, verbose):
     if verbose:
         print 'decrypting ' + in_filename
@@ -162,12 +173,12 @@ def decrypt_file(in_filename, file_offset, private_key, public_key, nofilename, 
     salt = salt_header[len('Salted__'):]
     key, iv = derive_key_iv(password, salt)
 
-    if outputdir == None:
+    if outputdir is None:
         outputdir = os.path.dirname(in_filename)
     if not nofilename:
         try:
             filename = cipher.decrypt(enc_filename)
-        except:
+        except Exception:
             print 'Error getting filename try with -n option'
             return False
         out_filename = os.path.join(outputdir, filename)
@@ -196,6 +207,7 @@ def decrypt_file(in_filename, file_offset, private_key, public_key, nofilename, 
         infile.close()
     return True
 
+
 def verify_file_signature(hash_value, signature_bin, publicrsa_key):
     verifier = PKCS1_v1_5.new(publicrsa_key)
     if verifier.verify(hash_value, signature_bin):
@@ -203,17 +215,29 @@ def verify_file_signature(hash_value, signature_bin, publicrsa_key):
     else:
         return False
 
+
 def __make_parser():
     p = argparse.ArgumentParser(description='This decrypts an encrypted file')
-    p.add_argument('-t', '--encrypted-file', type=str, help='the encrypted file you want to decrypt', default=None, required = True)
-    p.add_argument('-e', '--encryption-key', type=str, help='the private key used to decrypt the file', default=None, required = False)
-    p.add_argument('-s', '--signing-key', type=str, help='the public key used to verify the signature', default=None, required = False)
-    p.add_argument('-n', '--no-filename', action='store_true', help='do not include the filename in the package', default = False, required = False)
-    p.add_argument('-v', '--verbose', action='store_true', help='verbose message printing', default = False, required = False)
-    p.add_argument('-o', '--offset', type=int, help='Offset to start of data used if there is a header before the encryption this saves having to separate header and encrypted blob', required = False, default = 0)
-    p.add_argument('-d', '--output-directory', type=str, help='specify an alternate output directory for the decrypted file', default = None, required = False)
-    p.add_argument('-k', '--key-dir', type=str, help='specify directory for keys which will be determined from the header', default = None, required = False)
+    p.add_argument('-t', '--encrypted-file', type=str,
+                   help='the encrypted file you want to decrypt', default=None, required=True)
+    p.add_argument('-e', '--encryption-key', type=str,
+                   help='the private key used to decrypt the file', default=None, required=False)
+    p.add_argument('-s', '--signing-key', type=str,
+                   help='the public key used to verify the signature', default=None, required=False)
+    p.add_argument('-n', '--no-filename', action='store_true',
+                   help='do not include the filename in the package', default=False, required=False)
+    p.add_argument('-v', '--verbose', action='store_true',
+                   help='verbose message printing', default=False, required=False)
+    p.add_argument('-o', '--offset', type=int,
+                   help='Offset to start of data used if there is a header before the encryption this saves having to \
+                         separate header and encrypted blob', required=False, default=0)
+    p.add_argument('-d', '--output-directory', type=str,
+                   help='specify an alternate output directory for the decrypted file', default=None, required=False)
+    p.add_argument('-k', '--key-dir', type=str,
+                   help='specify directory for keys which will be determined from the header', default=None,
+                   required=False)
     return p
+
 
 def __main(argv):
     parser = __make_parser()
@@ -224,7 +248,7 @@ def __main(argv):
         sys.stderr.write('Error encrypted file is not a valid file\n')
         sys.exit(1)
 
-    if settings.key_dir == None and (settings.encryption_key == None or settings.signing_key == None):
+    if settings.key_dir is None and (settings.encryption_key is None or settings.signing_key is None):
         devKeysDir = os.path.join(MYDIR, '..', 'keys')
         if not os.path.isdir(devKeysDir):
             sys.stderr.write('Must specify key dir or encryption key and signing key\n')
@@ -235,21 +259,23 @@ def __main(argv):
 
     if settings.key_dir:
         header = read_header(settings.encrypted_file)
-        if header == None:
+        if header is None:
             sys.stderr.write('Cannot read encrypted file header\n')
             sys.exit(1)
         settings.offset = header['offset']
         find_keys(header, settings.key_dir, settings)
 
-
-    if (settings.encryption_key != None):
+    if (settings.encryption_key is not None):
         if settings.verbose:
             print "encryption key: " + settings.encryption_key
-        if not decrypt_file(settings.encrypted_file, settings.offset, settings.encryption_key, settings.signing_key, settings.no_filename, settings.output_directory, settings.verbose):
+        ret = decrypt_file(settings.encrypted_file, settings.offset, settings.encryption_key, settings.signing_key,
+                           settings.no_filename, settings.output_directory, settings.verbose)
+        if not ret:
             print 'Decryption failed'
             sys.exit(1)
 
     sys.exit(0)
+
 
 if __name__ == "__main__":
     __main(sys.argv)
