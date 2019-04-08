@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 import tarfile
-
+from uuid import uuid4
 
 def __make_parser():
     p = argparse.ArgumentParser(description='This packages up modules and a base into a raw omg file')
@@ -22,75 +22,74 @@ def __make_parser():
     p.add_argument('-d', '--output-directory', type=str, help='optional output direcotry if not given CWD will be used', default='./')
     p.add_argument('-v', '--verbose', action='store_true')
     p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[], help='Optional script(s) that will be run just before the romg is packaged that can be used to minifiy or tweak modules')
+    p.add_argument('--build-node-modules', action='store_true', help='if set, "npm run bits:install" will be run on base and all modules')
+    p.add_argument('--omg-format-version', type=int, help='set the format version (1 or 2)', default=1)
+    p.add_argument('--yarn-offline', action='store_true', help='force the package.json to run yarn with --offline flag (this will edit the file with sed)')
+    p.add_argument('-X', '--no-compression', action='store_true', help='disable compression for the tar bundle (romg file) this is useful if you plan on adding overlays at a later time')
     return p
 
 
 class romgBuilder(object):
-    def __init__(self, pathToBase, logger, tmpDir, name, version, branch=None):
+    def __init__(self, logger, tmpDir, name, version, branch=None, omgFormatVersion=1):
         self.tmpDir = tmpDir
         self.logger = logger
-        self.logger.debug("Adding base %s", pathToBase)
-        self.info = {'name': name, 'version': version, 'modules': [], 'overlays': {}, 'arch': 'x64'}
+        self.info = {'name': name,
+                     'version': version,
+                     'modules': [],
+                     'overlays': {},
+                     'arch': 'x86_64'}
         if branch is not None:
             self.info['branch'] = branch
-        baseInfo = self.__readModuleJson(pathToBase)
-        self.info['base'] = {'name': baseInfo['name'], 'version': baseInfo['version']}
-        self.info['modules'].append(self.__readModuleJson(pathToBase))
-        self.__extractTgz(pathToBase)
-        self.moduleDir = os.path.join('data', 'base', 'modules', 'modules')
-        os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.moduleDir)))
-        self.yarnCacheDir = None
-        self.yarnCacheDir = os.path.join(self.tmpDir, 'support', 'yarn-cache')
+        self.dataDir = 'data'
+        self.overlayDescriptorDir = None
+        if omgFormatVersion == 1:
+            self.moduleDir = os.path.join(self.dataDir, 'base', 'modules', 'modules')
+            self.baseDir = '.'
+            os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.moduleDir)))
+            self.yarnCacheDir = os.path.join(self.tmpDir, 'support', 'yarn-cache')
+        else:
+            self.moduleDir = 'modules'
+            self.baseDir = 'base'
+            self.overlayDescriptorDir = os.path.abspath(os.path.join(self.tmpDir, 'overlays'))
+            os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.moduleDir)))
+            os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.dataDir)))
+            os.makedirs(os.path.abspath(os.path.join(self.tmpDir, self.baseDir)))
+            self.info['uuid'] = str(uuid4())
+        if os.environ.has_key('OECORE_TARGET_ARCH'):
+            self.info['arch'] = os.environ['OECORE_TARGET_ARCH']
 
     def __extractTgz(self, tgzPath, relativeDir='.'):
         extractDir = os.path.abspath(os.path.join(self.tmpDir, relativeDir))
         self.logger.debug('Extracting %s to %s', tgzPath, extractDir)
-        tf = tarfile.open(tgzPath, 'r')
-        tf.extractall(extractDir)
+        with tarfile.open(tgzPath, 'r') as tf:
+            tf.extractall(extractDir)
 
     def __extractJsonFromTgz(self, tgzPath, filepath):
-        tf = tarfile.open(tgzPath, 'r')
-        contents = json.loads(tf.extractfile(filepath).read())
+        with tarfile.open(tgzPath, 'r') as tf:
+            contents = json.loads(tf.extractfile(filepath).read())
         return contents
 
     def __readModuleJson(self, moduleTgzPath):
         moduleJson = self.__extractJsonFromTgz(moduleTgzPath, 'module.json')
         if 'dependencies' not in moduleJson:
             moduleJson['dependencies'] = {}
-        return {'name': moduleJson['name'], 'version': moduleJson['version'], 'dependencies': moduleJson['dependencies']}
-
-    def addModule(self, moduleTgzPath):
-        self.logger.debug("Adding module %s", moduleTgzPath)
-        moduleInfo = self.__readModuleJson(moduleTgzPath)
-        self.info['modules'].append(moduleInfo)
-        relModuleDir = os.path.join(self.moduleDir, str(moduleInfo['name']))
-        self.__extractTgz(moduleTgzPath, relModuleDir)
-        self.__updateYarnCache(os.path.join(self.tmpDir, relModuleDir))
+        return {'name': moduleJson['name'],
+                'version': moduleJson['version'],
+                'dependencies': moduleJson['dependencies']}
 
     def __readOverlayJson(self, overlayTgzPath):
         overlayJson = self.__extractJsonFromTgz(overlayTgzPath, 'overlay.json')
         return {'name': overlayJson['name'], 'version': overlayJson['version']}
 
-    def addOverlay(self, overlayTgzPath):
-        self.logger.debug("Adding overlay %s", overlayTgzPath)
-        overlayInfo = self.__readOverlayJson(overlayTgzPath)
-        self.info['overlays'][overlayInfo['name']] = {'version': overlayInfo['version']}
-        self.__extractTgz(overlayTgzPath)
-
-    def writeRomg(self, outputDir):
-        if 'branch' in self.info:
-            sRomgFilename = '%s_%s_%s.romg' % (self.info['name'], self.info['branch'], self.info['version'])
-            sRomgInfoFilename = '%s_%s_%s_header.json' % (self.info['name'], self.info['branch'], self.info['version'])
-        else:
-            sRomgFilename = '%s_%s.romg' % (self.info['name'], self.info['version'])
-            sRomgInfoFilename = '%s_%s_header.json' % (self.info['name'], self.info['version'])
-        sRomgFilepath = os.path.join(outputDir, sRomgFilename)
-        sRomgInfoFilepath = os.path.join(outputDir, sRomgInfoFilename)
-        self.logger.debug('Outputing to %s %s', sRomgFilepath, sRomgInfoFilepath)
-        with tarfile.open(sRomgFilepath, "w:gz") as tar:
-            tar.add(self.tmpDir, arcname='./')
-        with open(sRomgInfoFilepath, 'w') as infoFile:
-            infoFile.write(json.dumps(self.info, indent=2, separators=(',', ': ')))
+    def __get_bits_install(self, moduleDir):
+        package_filename = os.path.abspath(os.path.join(moduleDir, "package.json"))
+        try:
+            with open(package_filename, 'r') as package_file:
+                package_info = json.load(package_file)
+        except IOError as e:
+            self.logger.warning("%s", e)
+            return False
+        return 'bits:install' in package_info['scripts']
 
     def __updateYarnCache(self, moduleDir):
         """
@@ -107,6 +106,87 @@ class romgBuilder(object):
                 sys.stderr.write('Failed to sync yarn cache for %s\n' % (moduleDir))
                 sys.exit(1)
             shutil.rmtree(moduleCacheDir)
+
+    def __buildModule(self, moduleDir, force_yarn_offline):
+        moduleCacheDir = os.path.join(os.path.abspath(os.path.join(moduleDir, 'support', 'yarn-cache')))
+        if os.path.isdir(moduleDir) and os.path.isdir(moduleCacheDir):
+            environment = os.environ.copy()
+            if force_yarn_offline:
+                os.system("sed -i 's/yarn --prod/yarn --prod --offline/' %s" % (os.path.join(moduleDir, 'package.json')))
+            environment['YARN_CACHE_FOLDER'] = moduleCacheDir
+            self.logger.debug('Running "bits:install" for %s', moduleDir)
+            cmd = ['npm', 'run', 'bits:install']
+            if os.environ.has_key('ARCH') and os.environ['ARCH'] != 'x86':
+                cmd.append('--target_arch=%s' % (os.environ['ARCH']))
+            p = subprocess.Popen(cmd, env=environment, cwd=moduleDir)
+            p.wait()
+            if p.returncode != 0:
+                raise Exception('Failed to build yarn for %s\n' % (moduleDir))
+            shutil.rmtree(moduleCacheDir)
+
+    def addBase(self, baseTgzPath, build_module=False, force_yarn_offline=False):
+        self.logger.debug("Adding module %s", baseTgzPath)
+        baseInfo = self.__readModuleJson(baseTgzPath)
+        absBaseDir = os.path.join(self.tmpDir, self.baseDir)
+        self.info['base'] = {'name': baseInfo['name'],
+                             'version': baseInfo['version']}
+        self.info['modules'].append(baseInfo)
+        self.__extractTgz(baseTgzPath, self.baseDir)
+        if build_module:
+            if self.__get_bits_install(absBaseDir):
+                self.__buildModule(absBaseDir, force_yarn_offline)
+            else:
+                self.logger.warning("Module %s doesn't contain a 'bits:install' script", baseInfo['name'])
+
+    def addModule(self, moduleTgzPath, build_module=False, force_yarn_offline=False):
+        self.logger.debug("Adding module %s", moduleTgzPath)
+        moduleInfo = self.__readModuleJson(moduleTgzPath)
+        self.info['modules'].append(moduleInfo)
+        relModuleDir = os.path.join(self.moduleDir, str(moduleInfo['name']))
+        absModuleDir = os.path.join(self.tmpDir, relModuleDir)
+        self.__extractTgz(moduleTgzPath, relModuleDir)
+        if build_module:
+            if self.__get_bits_install(absModuleDir):
+                self.__buildModule(absModuleDir, force_yarn_offline)
+            else:
+                self.logger.warning("Module %s doesn't contain a 'bits:install' script", moduleInfo['name'])
+        else:
+            self.__updateYarnCache(absModuleDir)
+
+    def addOverlay(self, overlayTgzPath):
+        self.logger.debug("Adding overlay %s", overlayTgzPath)
+        overlayInfo = self.__readOverlayJson(overlayTgzPath)
+        self.info['overlays'][overlayInfo['name']] = {'version': overlayInfo['version']}
+        self.__extractTgz(overlayTgzPath)
+        overlayJson = os.path.abspath(os.path.join(self.tmpDir, 'overlay.json'))
+        if os.path.isfile(overlayJson) and self.overlayDescriptorDir is not None:
+            os.makedirs(self.overlayDescriptorDir)
+            os.rename(overlayJson,
+                      os.path.join(self.overlayDescriptorDir,
+                                   overlayInfo['name'] + '_' + overlayInfo['version']))
+
+
+    def writeRomg(self, outputDir, disableCompression=False):
+        if 'branch' in self.info:
+            sRomgFilename = '%s_%s_%s.romg' % (self.info['name'],
+                                               self.info['branch'],
+                                               self.info['version'])
+            sRomgInfoFilename = '%s_%s_%s_header.json' % (self.info['name'],
+                                                          self.info['branch'],
+                                                          self.info['version'])
+        else:
+            sRomgFilename = '%s_%s.romg' % (self.info['name'], self.info['version'])
+            sRomgInfoFilename = '%s_%s_header.json' % (self.info['name'], self.info['version'])
+        sRomgFilepath = os.path.join(outputDir, sRomgFilename)
+        sRomgInfoFilepath = os.path.join(outputDir, sRomgInfoFilename)
+        self.logger.debug('Outputing to %s %s', sRomgFilepath, sRomgInfoFilepath)
+        tarFlags = "w"
+        if not disableCompression:
+            tarFlags += ":gz"
+        with tarfile.open(sRomgFilepath, tarFlags) as tar:
+            tar.add(self.tmpDir, arcname='./')
+        with open(sRomgInfoFilepath, 'w') as infoFile:
+            infoFile.write(json.dumps(self.info, indent=2, separators=(',', ': ')))
 
 
 def checkFileArg(fileName, errorStr):
@@ -155,15 +235,16 @@ def __main(argv):
     tmpDir = tempfile.mkdtemp(prefix='romg-')
     logger.debug('Using temp dir %s', tmpDir)
 
-    romg = romgBuilder(settings.base, logger, tmpDir, settings.name, settings.version, settings.branch)
+    romg = romgBuilder(logger, tmpDir, settings.name, settings.version, settings.branch, settings.omg_format_version)
+    romg.addBase(settings.base, settings.build_node_modules, settings.yarn_offline)
     for module in settings.modules:
-        romg.addModule(module)
+        romg.addModule(module, settings.build_node_modules, settings.yarn_offline)
     for overlay in settings.overlays:
         romg.addOverlay(overlay)
 
     run_pre_package_scripts(settings.pre_package_scripts, tmpDir)
+    romg.writeRomg(settings.output_directory, settings.no_compression)
 
-    romg.writeRomg(settings.output_directory)
     # clean up temp dir
     shutil.rmtree(tmpDir)
     sys.exit(0)
