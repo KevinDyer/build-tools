@@ -173,10 +173,11 @@ class romgBuilder(object):
         self.__extractTgz(overlayTgzPath)
         overlayJson = os.path.abspath(os.path.join(self.tmpDir, 'overlay.json'))
         if os.path.isfile(overlayJson) and self.overlayDescriptorDir is not None:
-            os.makedirs(self.overlayDescriptorDir)
+            if not os.path.isdir(self.overlayDescriptorDir):
+                os.makedirs(self.overlayDescriptorDir)
             os.rename(overlayJson,
                       os.path.join(self.overlayDescriptorDir,
-                                   overlayInfo['name'] + '_' + overlayInfo['version']))
+                                   overlayInfo['name'] + '_' + overlayInfo['version'] + '.json'))
 
     def writeRomg(self, outputDir, disableCompression=False):
         if 'branch' in self.info:
