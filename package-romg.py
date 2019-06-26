@@ -201,6 +201,19 @@ class romgBuilder(object):
         with open(sRomgInfoFilepath, 'w') as infoFile:
             infoFile.write(json.dumps(self.info, indent=2, separators=(',', ': ')))
 
+    def runPrepackageScripts(self):
+        scriptDir = os.path.abspath(os.path.join(self.tmpDir, 'prepackage_scripts'))
+        if os.path.isdir(scriptDir):
+            scripts = [f for f in os.listdir(scriptDir) if os.path.isfile(os.path.join(scriptDir, f))]
+            for scriptName in scripts:
+                scriptPath = os.path.join(scriptDir, scriptName)
+                self.logger.info("Running %s", scriptPath)
+                ret = subprocess.call([scriptPath], cwd=self.tmpDir)
+                if ret != 0:
+                    self.logger.error('Failed to run %s', ret)
+                    raise Exception('Failed to run prepackage hook %s', scriptPath)
+            shutil.rmtree(scriptDir)
+
 
 def checkFileArg(fileName, errorStr):
     if not os.path.exists(fileName):
@@ -256,8 +269,10 @@ def __main(argv):
         romg.addModule(module, settings.build_node_modules, settings.yarn_offline)
     for overlay in settings.overlays:
         romg.addOverlay(overlay)
-
+    # run pre-package scripts specified by the command line
     run_pre_package_scripts(settings.pre_package_scripts, tmpDir)
+    # run any pre-package scripts in overlays
+    romg.runPrepackageScripts()
     romg.writeRomg(settings.output_directory, settings.no_compression)
 
     # clean up temp dir
