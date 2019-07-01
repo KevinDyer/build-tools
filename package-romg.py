@@ -38,11 +38,15 @@ def __make_parser():
     p.add_argument('-X', '--no-compression', action='store_true',
                    help='disable compression for the tar bundle (romg file) this is useful if you plan on adding \
                          overlays at a later time')
+    p.add_argument('-O', '--ownership-info',
+                   help='json object with ownership info to set on the OMG at tar time \
+                        example: {"uid": 0, "uname": "root", "gid": 1000, "gname": "bits"} ',
+                   default=None)
     return p
 
 
 class romgBuilder(object):
-    def __init__(self, logger, tmpDir, name, version, branch=None, omgFormatVersion=1):
+    def __init__(self, logger, tmpDir, name, version, branch=None, omgFormatVersion=1, ownership=None):
         self.tmpDir = tmpDir
         self.logger = logger
         self.info = {'name': name,
@@ -50,6 +54,10 @@ class romgBuilder(object):
                      'modules': [],
                      'overlays': {},
                      'arch': 'x86_64'}
+        self.gid = None
+        self.uid = None
+        self.uname = None
+        self.gname = None
         if branch is not None:
             self.info['branch'] = branch
         self.dataDir = 'data'
@@ -69,6 +77,11 @@ class romgBuilder(object):
             self.info['uuid'] = str(uuid4())
         if 'OECORE_TARGET_ARCH' in os.environ:
             self.info['arch'] = os.environ['OECORE_TARGET_ARCH']
+        if ownership is not None:
+            self.uid = ownership['uid']
+            self.uname = str(ownership['uname'])
+            self.gid = ownership['gid']
+            self.gname = str(ownership['gname'])
 
     def __extractTgz(self, tgzPath, relativeDir='.'):
         extractDir = os.path.abspath(os.path.join(self.tmpDir, relativeDir))
@@ -197,9 +210,19 @@ class romgBuilder(object):
         if not disableCompression:
             tarFlags += ":gz"
         with tarfile.open(sRomgFilepath, tarFlags) as tar:
-            tar.add(self.tmpDir, arcname='./')
+            tar.add(self.tmpDir, arcname='./', filter=self.__tar_chown)
         with open(sRomgInfoFilepath, 'w') as infoFile:
             infoFile.write(json.dumps(self.info, indent=2, separators=(',', ': ')))
+
+    def __tar_chown(self, tarinfo):
+        if self.gid is not None and self.uid is not None:
+            tarinfo.uid = self.uid
+            tarinfo.gid = self.gid
+            tarinfo.uname = self.uname
+            tarinfo.gname = self.gname
+            # no permissions for other
+            tarinfo.mode &= ~0x07
+        return tarinfo
 
     def runPrepackageScripts(self):
         scriptDir = os.path.abspath(os.path.join(self.tmpDir, 'prepackage_scripts'))
@@ -258,12 +281,20 @@ def __main(argv):
     settings.overlays = [checkFileArg(overlayPath, 'Error invalid overlay specified %s' %
                                       (overlayPath)) for overlayPath in settings.overlays]
     settings.output_directory = checkFileArg(settings.output_directory, 'Error invalid output dir')
+    if settings.ownership_info:
+        try:
+            settings.ownership_info = json.loads(settings.ownership_info)
+        except ValueError:
+            logger.error('Could not parse ownership info: %s\n\n', settings.ownership_info)
+            parser.print_help()
+            sys.exit(1)
     logger.debug("Base: %s Modules: %s Overlays: %s", settings.base, settings.modules, settings.overlays)
 
     tmpDir = tempfile.mkdtemp(prefix='romg-')
     logger.debug('Using temp dir %s', tmpDir)
 
-    romg = romgBuilder(logger, tmpDir, settings.name, settings.version, settings.branch, settings.omg_format_version)
+    romg = romgBuilder(logger, tmpDir, settings.name, settings.version, settings.branch, settings.omg_format_version,
+                       settings.ownership_info)
     romg.addBase(settings.base, settings.build_node_modules, settings.yarn_offline)
     for module in settings.modules:
         romg.addModule(module, settings.build_node_modules, settings.yarn_offline)
