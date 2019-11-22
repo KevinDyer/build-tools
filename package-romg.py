@@ -42,6 +42,7 @@ def __make_parser():
                    help='json object with ownership info to set on the OMG at tar time \
                         example: {"uid": 0, "uname": "root", "gid": 1000, "gname": "bits"} ',
                    default=None)
+    p.add_argument('--no-dependencies', help="This flag disables dependency checking", action='store_true')
     return p
 
 
@@ -277,7 +278,7 @@ def __main(argv):
     # get absolute paths and check file inputs for existence
     settings.base = checkFileArg(settings.base, 'Invalid argument for base %s' % (settings.base))
     settings.modules = [checkFileArg(modulePath, 'Error invalid module specified %s' %
-                                     (modulePath)) for modulePath in settings.modules]
+                                     modulePath) for modulePath in settings.modules]
     settings.overlays = [checkFileArg(overlayPath, 'Error invalid overlay specified %s' %
                                       (overlayPath)) for overlayPath in settings.overlays]
     settings.output_directory = checkFileArg(settings.output_directory, 'Error invalid output dir')
@@ -289,10 +290,25 @@ def __main(argv):
             parser.print_help()
             sys.exit(1)
     logger.debug("Base: %s Modules: %s Overlays: %s", settings.base, settings.modules, settings.overlays)
-
     tmpDir = tempfile.mkdtemp(prefix='romg-')
     logger.debug('Using temp dir %s', tmpDir)
-
+    if settings.no_dependencies:
+        logger.debug("Skipping dependency check...")
+    else:
+        logger.debug("Checking module dependencies...")
+        env = os.environ
+        args = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'integratedcheckromgdeps.py'),
+            '-b', settings.base,
+            '-m'
+        ]
+        for module in settings.modules:
+            args.append(module)
+        dependency_check_process = subprocess.Popen(args, env=env)
+        dependency_check_process.wait()
+        if dependency_check_process.returncode != 0:
+            raise Exception("ERROR: Module dependencies not properly met. "
+                            "If this is intentional rerun with --no-dependencies.")
     romg = romgBuilder(logger, tmpDir, settings.name, settings.version, settings.branch, settings.omg_format_version,
                        settings.ownership_info)
     romg.addBase(settings.base, settings.build_node_modules, settings.yarn_offline)
