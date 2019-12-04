@@ -66,7 +66,7 @@ def get_git_hash(module_dir):
         git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
         git_hash = git_hash.strip('\n')
     except Exception:
-        print 'Error not able to get git_hash'
+        print('Error not able to get git_hash')
     os.chdir(wd)
     return git_hash
 
@@ -79,15 +79,15 @@ def get_git_branch(module_dir):
         git_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
         git_branch = git_branch.strip('\n')
     except Exception as e:
-        print 'Error not able to get git_branch'
-        print e
+        print('Error not able to get git_branch')
+        print(e)
     os.chdir(wd)
     return git_branch
 
 
 def get_scripts_dir(module_dir, json_file):
     m_json = os.path.join(module_dir, json_file)
-    print m_json
+    print(m_json)
     json_data = open(m_json)
     data = json.load(json_data)
     json_data.close()
@@ -246,24 +246,24 @@ def run_npm_build(buildDir):
     # Create a subprocess to run the build command, wait for it to complete
     ret = subprocess.call(args, cwd=buildDir, env=my_env)
     if 0 != ret:
-        print 'Failed to run \'npm run build\''
+        print('Failed to run \'npm run build\'')
         remove_build_dir(buildDir)
         sys.exit(2)
 
 
 def run_pre_package_scripts(scripts, buildDir):
-    print 'Scripts: ', scripts
+    print('Scripts: ', scripts)
     my_env = os.environ.copy()
 
     for script in scripts:
-        print "Running " + script
+        print("Running " + script)
         try:
             args = script.split(' ')
             ret = subprocess.call(args, cwd=buildDir, env=my_env)
             if 0 != ret:
-                print 'Failed to run ', ret
+                print('Failed to run ', ret)
         except Exception as e:
-            print 'Failed to run script ', e
+            print('Failed to run script ', e)
 
 
 def pre_package_cleanup(build_dir):
@@ -399,14 +399,14 @@ def __main(argv):
     if os.path.exists(aptOfflineDir) and not settings.skip_apt_offline_bundles and os.path.exists(aptOfflineScript):
         ret = os.system(aptOfflineScript + ' -d ' + aptOfflineDir)
         if ret != 0:
-            print 'Error generating apt-offline bundles'
+            print('Error generating apt-offline bundles')
             remove_build_dir(build_dir)
             sys.exit(1)
 
     pre_package_cleanup(build_dir)
 
     filename = filename + ".tgz"
-    print "outputting to: " + filename
+    print("outputting to: " + filename)
     make_tarfile(filename, build_dir + os.path.sep)
 
     remove_build_dir(build_dir)
@@ -417,7 +417,7 @@ def __main(argv):
         os.system(MYDIR + "/encrypt-data.py -m -t " + filename + " -e " +
                   settings.encryptionkey + " -s " + settings.signingkey)
     else:
-        print "Not Encrypting, Need to Specify Encryption and Signing keys (-s and -e)"
+        print("Not Encrypting, Need to Specify Encryption and Signing keys (-s and -e)")
 
     sys.exit(0)
 
