@@ -1,0 +1,10 @@
+py_binary(
+    name = "package-module",
+    srcs = [
+        "package-module.py",
+    ],
+    python_version = "PY3",
+    visibility = [
+        "//visibility:public",
+    ],
+)
