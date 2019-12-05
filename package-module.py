@@ -301,12 +301,14 @@ def __make_parser():
     p.add_argument('-v', '--version', type=str,
                    help='Version number to apply to this build this is the new method of version tracking and replaces \
                          git-branch and buildnum')
+    p.add_argument('-o', '--output', type=str, help='The output file name')
     return p
 
 
 def __main(argv):
     parser = __make_parser()
     settings = parser.parse_args(argv[1:])
+    print(settings)
     MYDIR = os.path.dirname(os.path.realpath(__file__))
 
     if (not os.path.isdir(settings.module_dir)):
@@ -404,6 +406,9 @@ def __main(argv):
             sys.exit(1)
 
     pre_package_cleanup(build_dir)
+
+    if settings.output:
+        filename = settings.output
 
     filename = filename + ".tgz"
     print("outputting to: " + filename)
