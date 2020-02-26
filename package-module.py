@@ -269,10 +269,13 @@ def run_pre_package_scripts(scripts, buildDir):
 def pre_package_cleanup(build_dir):
     nodeModDir = os.path.join(build_dir, 'node_modules')
     testDir = os.path.join(build_dir, 'test')
+    testCoverageDir = os.path.join(build_dir, 'coverage')
     if os.path.exists(nodeModDir):
         shutil.rmtree(nodeModDir)
     if os.path.exists(testDir):
         shutil.rmtree(testDir)
+    if os.path.exists(testCoverageDir):
+        shutil.rmtree(testCoverageDir)
 
 
 def __make_parser():
