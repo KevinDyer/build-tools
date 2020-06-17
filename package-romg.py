@@ -89,6 +89,7 @@ class romgBuilder(object):
         self.logger.debug('Extracting %s to %s', tgzPath, extractDir)
         with tarfile.open(tgzPath, 'r') as tf:
             tf.extractall(extractDir)
+        self._cleanExtractedTgz(extractDir)
 
     def __extractJsonFromTgz(self, tgzPath, filepath):
         with tarfile.open(tgzPath, 'r') as tf:
@@ -237,6 +238,16 @@ class romgBuilder(object):
                     self.logger.error('Failed to run %s', ret)
                     raise Exception('Failed to run prepackage hook %s', scriptPath)
             shutil.rmtree(scriptDir)
+
+    def _cleanExtractedTgz(self, dir):
+        """
+        This cleans up any files we want to ensure do not make it into the final
+        """
+        gitlabDir = os.path.join(dir, ".gitlab")
+        self.logger.debug("Checking for gitlab dir %s", gitlabDir)
+        if os.path.exists(gitlabDir):
+            self.logger.debug("Removing gitlab dir %s", gitlabDir)
+            shutil.rmtree(gitlabDir)
 
 
 def checkFileArg(fileName, errorStr):

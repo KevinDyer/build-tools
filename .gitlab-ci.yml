@@ -19,6 +19,7 @@ deploy-tools:
 
 run-lint:
     stage: lint
+    image: ${LINT_BUILD_IMAGE}
     tags:
         - bits
         - docker

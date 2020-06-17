@@ -333,7 +333,7 @@ def __main(argv):
     # after
     EXCLUDE_FILES = ['.gitignore', 'README', 'README.md', '*.exclude.*', '*.exclude', '.gitlab-ci.yml', 'CHANGELOG.md',
                      '.editorconfig']
-    EXCLUDE_DIRS = ['.git']
+    EXCLUDE_DIRS = ['.git', '.gitlab']
     if not settings.include_python_source:
         EXCLUDE_DIRS.extend(settings.python_paths)
     copy_module_files(settings.module_dir, build_dir, EXCLUDE_FILES, EXCLUDE_DIRS)
