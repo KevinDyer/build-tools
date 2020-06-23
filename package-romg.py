@@ -25,7 +25,7 @@ def __make_parser():
                    help='path(s) to overlays that should be overlayed in the omg. multiple overlays separated by \
                          spaces', default=[], required=False)
     p.add_argument('-d', '--output-directory', type=str,
-                   help='optional output direcotry if not given CWD will be used', default='./')
+                   help='optional output directory if not given CWD will be used', default='./')
     p.add_argument('-v', '--verbose', action='store_true')
     p.add_argument('-a', '--pre-package', action='append', dest='pre_package_scripts', default=[],
                    help='Optional script(s) that will be run just before the romg is packaged that can be used to \
@@ -152,34 +152,72 @@ class romgBuilder(object):
                 raise Exception('Failed to build yarn for %s\n' % (moduleDir))
             shutil.rmtree(moduleCacheDir)
 
-    def addBase(self, baseTgzPath, build_module=False, force_yarn_offline=False):
-        self.logger.debug("Adding module %s", baseTgzPath)
+    def addBase(self, baseTgzPath):
+        self.logger.debug("Adding base %s", baseTgzPath)
         baseInfo = self.__readModuleJson(baseTgzPath)
-        absBaseDir = os.path.join(self.tmpDir, self.baseDir)
         self.info['base'] = {'name': baseInfo['name'],
                              'version': baseInfo['version']}
         self.info['modules'].append(baseInfo)
         self.__extractTgz(baseTgzPath, self.baseDir)
+
+    def buildBase(self, build_module=False, force_yarn_offline=False):
+        self.logger.debug("Building base")
+        absBaseDir = os.path.join(self.tmpDir, self.baseDir)
         if build_module:
             if self.__get_bits_install(absBaseDir):
                 self.__buildModule(absBaseDir, force_yarn_offline)
             else:
-                self.logger.warning("Module %s doesn't contain a 'bits:install' script", baseInfo['name'])
+                self.logger.warning("Base doesn't contain a 'bits:install' script")
 
-    def addModule(self, moduleTgzPath, build_module=False, force_yarn_offline=False):
+    def addModule(self, moduleTgzPath):
         self.logger.debug("Adding module %s", moduleTgzPath)
         moduleInfo = self.__readModuleJson(moduleTgzPath)
         self.info['modules'].append(moduleInfo)
         relModuleDir = os.path.join(self.moduleDir, str(moduleInfo['name']))
-        absModuleDir = os.path.join(self.tmpDir, relModuleDir)
         self.__extractTgz(moduleTgzPath, relModuleDir)
+
+    def buildModule(self, moduleName, build_module=False, force_yarn_offline=False):
+        self.logger.debug("Building module %s", moduleName)
+        absModuleDir = os.path.join(self.tmpDir, os.path.join(self.moduleDir, moduleName))
         if build_module:
             if self.__get_bits_install(absModuleDir):
                 self.__buildModule(absModuleDir, force_yarn_offline)
             else:
-                self.logger.warning("Module %s doesn't contain a 'bits:install' script", moduleInfo['name'])
+                self.logger.warning("Module %s doesn't contain a 'bits:install' script", moduleName)
         else:
             self.__updateYarnCache(absModuleDir)
+
+    def combineNpmPackages(self, build_module=False, force_yarn_offline=False):
+        try:
+            p = subprocess.Popen([
+                'nip',
+                '--ignore', 'node',
+                '--ignore', 'node_modules',
+                '--ignore', 'bower_components',
+                '-d', self.tmpDir,
+                '-o', self.tmpDir,
+                '-u'
+            ], env=os.environ.copy())
+            p.wait()
+        except OSError as e:
+            if e.errno == os.errno.ENOENT:
+                self.logger.warning('nip command not found, \
+                @lgslabs/nip should be installed for a better packaging experience.')
+            else:
+                raise e
+        self.logger.debug("Building shared package.json at %s", self.tmpDir)
+        try:
+            os.makedirs(os.path.abspath(os.path.join(self.tmpDir, 'support', 'yarn-cache')))
+        except OSError as e:
+            if e.errno != os.errno.EEXIST:
+                raise e
+        if build_module:
+            if self.__get_bits_install(self.tmpDir):
+                self.__buildModule(self.tmpDir, force_yarn_offline)
+            else:
+                self.logger.warning("root level package.json doesn't contain a 'bits:install' script")
+        else:
+            self.__updateYarnCache(self.tmpDir)
 
     def addOverlay(self, overlayTgzPath):
         self.logger.debug("Adding overlay %s", overlayTgzPath)
@@ -322,9 +360,14 @@ def __main(argv):
                             "If this is intentional rerun with --no-dependencies.")
     romg = romgBuilder(logger, tmpDir, settings.name, settings.version, settings.branch, settings.omg_format_version,
                        settings.ownership_info)
-    romg.addBase(settings.base, settings.build_node_modules, settings.yarn_offline)
+    romg.addBase(settings.base)
     for module in settings.modules:
-        romg.addModule(module, settings.build_node_modules, settings.yarn_offline)
+        romg.addModule(module)
+    romg.combineNpmPackages(settings.build_node_modules, settings.yarn_offline)
+    romg.buildBase(settings.build_node_modules, settings.yarn_offline)
+    for module in romg.info['modules']:
+        if(str(module['name']) != 'bits-base'):
+            romg.buildModule(str(module['name']), settings.build_node_modules, settings.yarn_offline)
     for overlay in settings.overlays:
         romg.addOverlay(overlay)
     # run pre-package scripts specified by the command line
